@@ -718,7 +718,9 @@ final class DefaultCamera: NSObject, Camera {
     subfolder: String,
     prefix: String
   ) throws -> String {
-    let documentDirectory = FileManager.default.temporaryDirectory
+    let documentDirectory = FileManager.default.urls(
+      for: .cachesDirectory,
+      in: .userDomainMask)[0]
 
     let fileDirectory = documentDirectory.appendingPathComponent("camera").appendingPathComponent(
       subfolder)
