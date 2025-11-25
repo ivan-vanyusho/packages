@@ -43,13 +43,13 @@ final class DefaultCamera: NSObject, Camera {
   private let mediaSettings: FCPPlatformMediaSettings
   private let mediaSettingsAVWrapper: FLTCamMediaSettingsAVWrapper
 
-  private let videoCaptureSession: CaptureSession
-  private let audioCaptureSession: CaptureSession
+  private let videoCaptureSession: FLTCaptureSession
+  private let audioCaptureSession: FLTCaptureSession
 
   /// A wrapper for AVCaptureDevice creation to allow for dependency injection in tests.
   private let videoCaptureDeviceFactory: VideoCaptureDeviceFactory
   private let audioCaptureDeviceFactory: AudioCaptureDeviceFactory
-  private let captureDeviceInputFactory: CaptureDeviceInputFactory
+  private let captureDeviceInputFactory: FLTCaptureDeviceInputFactory
   private let assetWriterFactory: AssetWriterFactory
   private let inputPixelBufferAdaptorFactory: InputPixelBufferAdaptorFactory
 
@@ -60,12 +60,12 @@ final class DefaultCamera: NSObject, Camera {
   private let deviceOrientationProvider: DeviceOrientationProvider
   private let motionManager = CMMotionManager()
 
-  private(set) var captureDevice: CaptureDevice
+  private(set) var captureDevice: FLTCaptureDevice
   // Setter exposed for tests.
   var captureVideoOutput: CaptureVideoDataOutput
   // Setter exposed for tests.
   var capturePhotoOutput: CapturePhotoOutput
-  private var captureVideoInput: CaptureInput
+  private var captureVideoInput: FLTCaptureInput
 
   private var videoWriter: FLTAssetWriter?
   private var videoWriterInput: FLTAssetWriterInput?
@@ -132,10 +132,10 @@ final class DefaultCamera: NSObject, Camera {
   }
 
   private static func createConnection(
-    captureDevice: CaptureDevice,
+    captureDevice: FLTCaptureDevice,
     videoFormat: FourCharCode,
-    captureDeviceInputFactory: CaptureDeviceInputFactory
-  ) throws -> (CaptureInput, CaptureVideoDataOutput, AVCaptureConnection) {
+    captureDeviceInputFactory: FLTCaptureDeviceInputFactory
+  ) throws -> (FLTCaptureInput, CaptureVideoDataOutput, AVCaptureConnection) {
     // Setup video capture input.
     let captureVideoInput = try captureDeviceInputFactory.deviceInput(with: captureDevice)
 
@@ -211,10 +211,10 @@ final class DefaultCamera: NSObject, Camera {
 
       try setCaptureSessionPreset(mediaSettings.resolutionPreset)
 
-      FormatUtils.selectBestFormat(
-        for: captureDevice,
-        mediaSettings: mediaSettings,
-        videoDimensionsConverter: videoDimensionsConverter)
+      FLTSelectBestFormatForRequestedFrameRate(
+        captureDevice,
+        mediaSettings,
+        videoDimensionsConverter)
 
       if let framesPerSecond = mediaSettings.framesPerSecond {
         // Set frame rate with 1/10 precision allowing non-integral values.
@@ -248,7 +248,7 @@ final class DefaultCamera: NSObject, Camera {
         do {
           try captureDevice.lockForConfiguration()
           // Set the best device format found and finish the device configuration.
-          captureDevice.flutterActiveFormat = bestFormat
+          captureDevice.activeFormat = bestFormat
           captureDevice.unlockForConfiguration()
           break
         }
@@ -301,23 +301,23 @@ final class DefaultCamera: NSObject, Camera {
       }
     }
 
-    let size = videoDimensionsConverter(captureDevice.flutterActiveFormat)
+    let size = videoDimensionsConverter(captureDevice.activeFormat)
     previewSize = CGSize(width: CGFloat(size.width), height: CGFloat(size.height))
     audioCaptureSession.sessionPreset = videoCaptureSession.sessionPreset
   }
 
   /// Finds the highest available resolution in terms of pixel count for the given device.
   /// Preferred are formats with the same subtype as current activeFormat.
-  private func highestResolutionFormat(forCaptureDevice captureDevice: CaptureDevice)
+  private func highestResolutionFormat(forCaptureDevice captureDevice: FLTCaptureDevice)
     -> FLTCaptureDeviceFormat?
   {
     let preferredSubType = CMFormatDescriptionGetMediaSubType(
-      captureDevice.flutterActiveFormat.formatDescription)
+      captureDevice.activeFormat.formatDescription)
     var bestFormat: FLTCaptureDeviceFormat? = nil
     var maxPixelCount: UInt = 0
     var isBestSubTypePreferred = false
 
-    for format in captureDevice.flutterFormats {
+    for format in captureDevice.formats {
       let resolution = videoDimensionsConverter(format)
       let height = UInt(resolution.height)
       let width = UInt(resolution.width)
@@ -555,7 +555,7 @@ final class DefaultCamera: NSObject, Camera {
         compressionProperties[AVVideoExpectedSourceFrameRateKey] = framesPerSecond
       }
 
-      videoSettings?[AVVideoCompressionPropertiesKey] = compressionProperties
+      videoSettings[AVVideoCompressionPropertiesKey] = compressionProperties
     }
 
     let videoWriterInput = mediaSettingsAVWrapper.assetWriterVideoInput(
@@ -802,12 +802,12 @@ final class DefaultCamera: NSObject, Camera {
     switch exposureMode {
     case .locked:
       // AVCaptureExposureMode.autoExpose automatically adjusts the exposure one time, and then locks exposure for the device
-      captureDevice.exposureMode = .autoExpose
+      captureDevice.setExposureMode(.autoExpose)
     case .auto:
       if captureDevice.isExposureModeSupported(.continuousAutoExposure) {
-        captureDevice.exposureMode = .continuousAutoExposure
+        captureDevice.setExposureMode(.continuousAutoExposure)
       } else {
-        captureDevice.exposureMode = .autoExpose
+        captureDevice.setExposureMode(.autoExpose)
       }
     @unknown default:
       assertionFailure("Unknown exposure mode")
@@ -838,7 +838,7 @@ final class DefaultCamera: NSObject, Camera {
     // A nil point resets to the center.
     let exposurePoint = cgPoint(
       for: point ?? FCPPlatformPoint.makeWith(x: 0.5, y: 0.5), withOrientation: orientation)
-    captureDevice.exposurePointOfInterest = exposurePoint
+    captureDevice.setExposurePointOfInterest(exposurePoint)
     captureDevice.unlockForConfiguration()
     // Retrigger auto exposure
     applyExposureMode()
@@ -863,11 +863,11 @@ final class DefaultCamera: NSObject, Camera {
     let orientation = deviceOrientationProvider.orientation
     try? captureDevice.lockForConfiguration()
     // A nil point resets to the center.
-    captureDevice.focusPointOfInterest =
+    captureDevice.setFocusPointOfInterest(
       cgPoint(
         for: point ?? .makeWith(x: 0.5, y: 0.5),
         withOrientation: orientation)
-
+    )
     captureDevice.unlockForConfiguration()
     // Retrigger auto focus
     applyFocusMode()
@@ -879,20 +879,20 @@ final class DefaultCamera: NSObject, Camera {
   }
 
   private func applyFocusMode(
-    _ focusMode: FCPPlatformFocusMode, onDevice captureDevice: CaptureDevice
+    _ focusMode: FCPPlatformFocusMode, onDevice captureDevice: FLTCaptureDevice
   ) {
     try? captureDevice.lockForConfiguration()
     switch focusMode {
     case .locked:
       // AVCaptureFocusMode.autoFocus automatically adjusts the focus one time, and then locks focus
       if captureDevice.isFocusModeSupported(.autoFocus) {
-        captureDevice.focusMode = .autoFocus
+        captureDevice.setFocusMode(.autoFocus)
       }
     case .auto:
       if captureDevice.isFocusModeSupported(.continuousAutoFocus) {
-        captureDevice.focusMode = .continuousAutoFocus
+        captureDevice.setFocusMode(.continuousAutoFocus)
       } else if captureDevice.isFocusModeSupported(.autoFocus) {
-        captureDevice.focusMode = .autoFocus
+        captureDevice.setFocusMode(.autoFocus)
       }
     @unknown default:
       assertionFailure("Unknown focus mode")
@@ -1322,9 +1322,9 @@ final class DefaultCamera: NSObject, Camera {
       "height": imageHeight,
       "format": videoFormat,
       "planes": planes,
-      "lensAperture": Double(captureDevice.lensAperture),
-      "sensorExposureTime": Int(captureDevice.exposureDuration.seconds * 1_000_000_000),
-      "sensorSensitivity": Double(captureDevice.iso),
+      "lensAperture": Double(captureDevice.lensAperture()),
+      "sensorExposureTime": Int(captureDevice.exposureDuration().seconds * 1_000_000_000),
+      "sensorSensitivity": Double(captureDevice.iso()),
     ]
 
     DispatchQueue.main.async {
@@ -1380,13 +1380,13 @@ final class DefaultCamera: NSObject, Camera {
   func close() {
     stop()
     for input in videoCaptureSession.inputs {
-      videoCaptureSession.removeInput(input)
+      videoCaptureSession.removeInput(FLTDefaultCaptureInput(input: input))
     }
     for output in videoCaptureSession.outputs {
       videoCaptureSession.removeOutput(output)
     }
     for input in audioCaptureSession.inputs {
-      audioCaptureSession.removeInput(input)
+      audioCaptureSession.removeInput(FLTDefaultCaptureInput(input: input))
     }
     for output in audioCaptureSession.outputs {
       audioCaptureSession.removeOutput(output)
