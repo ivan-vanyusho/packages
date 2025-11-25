@@ -538,7 +538,11 @@ final class DefaultCamera: NSObject, Camera {
       withFileType:
         AVFileType.mp4,
       for: captureVideoOutput
-    )
+    ) ?? [:]
+    videoSettings[AVVideoCodecKey] = AVVideoCodecType.h264
+    videoSettings[AVVideoWidthKey] = 360
+    videoSettings[AVVideoHeightKey] = 640
+    videoSettings[AVVideoScalingModeKey] = AVVideoScalingModeResizeAspect
 
     if mediaSettings.videoBitrate != nil || mediaSettings.framesPerSecond != nil {
       var compressionProperties: [String: Any] = [:]
@@ -714,9 +718,7 @@ final class DefaultCamera: NSObject, Camera {
     subfolder: String,
     prefix: String
   ) throws -> String {
-    let documentDirectory = FileManager.default.urls(
-      for: .documentDirectory,
-      in: .userDomainMask)[0]
+    let documentDirectory = FileManager.default.temporaryDirectory
 
     let fileDirectory = documentDirectory.appendingPathComponent("camera").appendingPathComponent(
       subfolder)
