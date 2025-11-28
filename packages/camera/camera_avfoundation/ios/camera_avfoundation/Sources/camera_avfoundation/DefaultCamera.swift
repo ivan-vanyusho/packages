@@ -555,7 +555,7 @@ final class DefaultCamera: NSObject, Camera {
         compressionProperties[AVVideoExpectedSourceFrameRateKey] = framesPerSecond
       }
 
-      videoSettings?[AVVideoCompressionPropertiesKey] = compressionProperties
+      videoSettings[AVVideoCompressionPropertiesKey] = compressionProperties
     }
 
     let videoWriterInput = mediaSettingsAVWrapper.assetWriterVideoInput(
