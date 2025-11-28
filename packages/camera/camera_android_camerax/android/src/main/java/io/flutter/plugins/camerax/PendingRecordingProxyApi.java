@@ -38,17 +38,17 @@ class PendingRecordingProxyApi extends PigeonApiPendingRecording {
   @NonNull
   @Override
   public PendingRecording withAudioEnabled(PendingRecording pigeonInstance, boolean initialMuted) {
-    if (initialMuted) {
-      return pigeonInstance;
+    boolean hasPermission =
+        ContextCompat.checkSelfPermission(
+                getPigeonRegistrar().getContext(), Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED;
+
+    if (hasPermission) {
+      return pigeonInstance.withAudioEnabled(initialMuted);
     }
 
-    if (ContextCompat.checkSelfPermission(
-            getPigeonRegistrar().getContext(), Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED) {
-      return pigeonInstance.withAudioEnabled(true);
-    }
-
-    return pigeonInstance.withAudioEnabled(false);
+    // By default, the recording will not contain audio.
+    return pigeonInstance;
   }
 
   @NonNull
