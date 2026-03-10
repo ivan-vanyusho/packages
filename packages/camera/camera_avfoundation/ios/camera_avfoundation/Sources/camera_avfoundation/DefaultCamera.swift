@@ -593,7 +593,11 @@ final class DefaultCamera: NSObject, Camera {
       withFileType:
         AVFileType.mp4,
       for: captureVideoOutput
-    )
+    ) ?? [:]
+    videoSettings[AVVideoCodecKey] = AVVideoCodecType.h264
+    videoSettings[AVVideoWidthKey] = 360
+    videoSettings[AVVideoHeightKey] = 640
+    videoSettings[AVVideoScalingModeKey] = AVVideoScalingModeResizeAspect
 
     if mediaSettings.videoBitrate != nil || framesPerSecond != nil {
       var compressionProperties: [String: Any] = [:]
@@ -606,7 +610,7 @@ final class DefaultCamera: NSObject, Camera {
         compressionProperties[AVVideoExpectedSourceFrameRateKey] = framesPerSecond
       }
 
-      videoSettings?[AVVideoCompressionPropertiesKey] = compressionProperties
+      videoSettings[AVVideoCompressionPropertiesKey] = compressionProperties
     }
 
     let videoWriterInput = mediaSettingsAVWrapper.assetWriterVideoInput(
