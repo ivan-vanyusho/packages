@@ -30,8 +30,8 @@ class QualitySelectorProxyApi extends PigeonApiQualitySelector {
   public QualitySelector from(
           @NonNull VideoQuality quality, @Nullable FallbackStrategy fallbackStrategy) {
     return QualitySelector.fromOrderedList(
-            Arrays.asList(Quality.HD, Quality.SD, Quality.FHD),
-            FallbackStrategy.higherQualityOrLowerThan(Quality.HD)
+            Arrays.asList(Quality.SD, Quality.HD, Quality.FHD),
+            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
     );
   }
 
@@ -41,8 +41,8 @@ class QualitySelectorProxyApi extends PigeonApiQualitySelector {
           @NonNull List<? extends VideoQuality> qualities,
           @Nullable FallbackStrategy fallbackStrategy) {
     return QualitySelector.fromOrderedList(
-            Arrays.asList(Quality.HD, Quality.SD, Quality.FHD),
-            FallbackStrategy.higherQualityOrLowerThan(Quality.HD)
+            Arrays.asList(Quality.SD, Quality.HD, Quality.FHD),
+            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
     );
   }
 
