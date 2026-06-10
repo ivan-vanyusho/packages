@@ -589,18 +589,23 @@ final class DefaultCamera: NSObject, Camera {
       return false
     }
 
-    var videoSettings = mediaSettingsAVWrapper.recommendedVideoSettingsForAssetWriter(
-      withFileType:
-        AVFileType.mp4,
-      for: captureVideoOutput
-    ) ?? [:]
-    videoSettings[AVVideoCodecKey] = AVVideoCodecType.h264
+    // Use the codec-aware overload so that AVVideoCodecKey and AVVideoCompressionPropertiesKey
+    // (including AVVideoProfileLevelKey) are generated together and are guaranteed to be
+    // consistent, preventing NSInvalidArgumentException at AVAssetWriterInput init time.
+    var videoSettings =
+      captureVideoOutput.avOutput.recommendedVideoSettings(
+        forVideoCodecType: .h264,
+        assetWriterOutputFileType: .mp4
+      ) ?? [:]
     videoSettings[AVVideoWidthKey] = 360
     videoSettings[AVVideoHeightKey] = 640
     videoSettings[AVVideoScalingModeKey] = AVVideoScalingModeResizeAspect
 
     if mediaSettings.videoBitrate != nil || framesPerSecond != nil {
-      var compressionProperties: [String: Any] = [:]
+      // Merge custom bitrate/fps into the existing compression properties so that keys
+      // already set by recommendedVideoSettings (e.g. AVVideoProfileLevelKey) are preserved.
+      var compressionProperties =
+        videoSettings[AVVideoCompressionPropertiesKey] as? [String: Any] ?? [:]
 
       if let videoBitrate = mediaSettings.videoBitrate {
         compressionProperties[AVVideoAverageBitRateKey] = Int(videoBitrate)
