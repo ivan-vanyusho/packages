@@ -12,7 +12,6 @@ import androidx.camera.video.FallbackStrategy;
 import androidx.camera.video.Quality;
 import androidx.camera.video.QualitySelector;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -28,22 +27,29 @@ class QualitySelectorProxyApi extends PigeonApiQualitySelector {
   @NonNull
   @Override
   public QualitySelector from(
-          @NonNull VideoQuality quality, @Nullable FallbackStrategy fallbackStrategy) {
-    return QualitySelector.fromOrderedList(
-            Arrays.asList(Quality.SD, Quality.HD, Quality.FHD),
-            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
-    );
+      @NonNull VideoQuality quality, @Nullable FallbackStrategy fallbackStrategy) {
+    if (fallbackStrategy == null) {
+      return QualitySelector.from(getNativeQuality(quality));
+    }
+
+    return QualitySelector.from(getNativeQuality(quality), fallbackStrategy);
   }
 
   @NonNull
   @Override
   public QualitySelector fromOrderedList(
-          @NonNull List<? extends VideoQuality> qualities,
-          @Nullable FallbackStrategy fallbackStrategy) {
-    return QualitySelector.fromOrderedList(
-            Arrays.asList(Quality.SD, Quality.HD, Quality.FHD),
-            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
-    );
+      @NonNull List<? extends VideoQuality> qualities,
+      @Nullable FallbackStrategy fallbackStrategy) {
+    final List<Quality> nativeQualities = new ArrayList<>();
+    for (final VideoQuality quality : qualities) {
+      nativeQualities.add(getNativeQuality(quality));
+    }
+
+    if (fallbackStrategy == null) {
+      return QualitySelector.fromOrderedList(nativeQualities);
+    }
+
+    return QualitySelector.fromOrderedList(nativeQualities, fallbackStrategy);
   }
 
   @Nullable
